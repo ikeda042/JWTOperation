@@ -7,6 +7,7 @@ import uvicorn
 from schemas import (
     Account,
     AuthorizationException,
+    BaseModelImmutable,
     InvalidPassword,
     InvalidTokenRequest,
     NotEnoughPermissions,
@@ -29,6 +30,14 @@ app = FastAPI(
     docs_url=f"{API_BASE_PATH}/docs",
     openapi_url=f"{API_BASE_PATH}/openapi.json",
 )
+
+
+class TokenResponse(BaseModelImmutable):
+    access_token: str
+    token_type: str
+    expires_in: int
+    scope: str
+    refresh_token: str | None = None
 
 
 def _authenticate_user(username: str, password: str) -> Account:
@@ -63,6 +72,10 @@ def _parse_bool_env(key: str, default: bool = False) -> bool:
     return value.lower() in {"1", "true", "yes", "on"}
 
 
+def _serialize_scopes(scopes: set[Scope]) -> str:
+    return " ".join(sorted(scope.value for scope in scopes))
+
+
 @app.exception_handler(AuthorizationException)
 async def authorization_exception_handler(
     request: Request,
@@ -77,7 +90,7 @@ async def health_check() -> dict[str, str]:
 
 
 @app.post(f"{API_BASE_PATH}/oauth/token")
-async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str | int]:
+async def issue_token(form_data: OAuth2RequestForm = Depends()) -> TokenResponse:
     if form_data.grant_type == OAuth2GrantType.password:
         if form_data.username is None or form_data.password is None:
             raise InvalidTokenRequest("username/password are required for password grant.")
@@ -89,13 +102,13 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str
         )
         refresh_token = await TokenManager.create_refresh_token_from_account(account)
         access_token = TokenManager.create_access_token_from_account(account)
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "expires_in": ACCESS_TOKEN_EXP_MINUTES * 60,
-            "scope": " ".join(sorted(scope.value for scope in account.scopes)),
-            "refresh_token": refresh_token,
-        }
+        return TokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            expires_in=ACCESS_TOKEN_EXP_MINUTES * 60,
+            scope=_serialize_scopes(account.scopes),
+            refresh_token=refresh_token,
+        )
 
     if form_data.refresh_token is None:
         raise InvalidTokenRequest("refresh_token is required for refresh_token grant.")
@@ -109,12 +122,12 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str
         ),
     )
     access_token = TokenManager.create_access_token_from_account(account)
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "expires_in": ACCESS_TOKEN_EXP_MINUTES * 60,
-        "scope": " ".join(sorted(scope.value for scope in account.scopes)),
-    }
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        expires_in=ACCESS_TOKEN_EXP_MINUTES * 60,
+        scope=_serialize_scopes(account.scopes),
+    )
 
 
 if __name__ == "__main__":
