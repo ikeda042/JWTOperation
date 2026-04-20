@@ -131,7 +131,8 @@ access token には `type=access` を入れる。
 
 ## 実行方法
 
-依存ライブラリが入った環境で次を実行する。
+依存ライブラリが入った環境で次を実行する。  
+デフォルトの `RS256` では `JWT_PRIVATE_KEY` と `JWT_PUBLIC_KEY` の環境変数が必要。
 
 ```bash
 python main.py
@@ -173,14 +174,16 @@ python test.py
 - `REFRESH_TOKEN_EXP_MINUTES`
 - `REFRESH_TOKEN_STORE`
 
-挙動を変えたい場合は、ここを編集する。
+`JWT_ALGORITHM` の値に応じて、必要な鍵設定を環境変数で渡す。
+
+- `RS256`（デフォルト）: `JWT_PRIVATE_KEY` と `JWT_PUBLIC_KEY`
+- `HS256`: `JWT_SECRET`
 
 ## 注意
 
 これは本番向け実装ではない。  
 特に次の点は簡略化している。
 
-- 秘密鍵をコードにハードコードしている
 - refresh token を平文でファイル保存している
 - DB ではなくテキストファイルを使っている
 - OAuth 2.0 の完全な実装ではない

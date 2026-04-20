@@ -49,6 +49,12 @@ class TokenManager:
                 f"Unsupported JWT_ALGORITHM: {JWT_ALGORITHM}. "
                 f"Supported: {sorted(cls._SUPPORTED_ALGORITHMS)}"
             )
+        if JWT_ALGORITHM == "HS256" and not JWT_SECRET:
+            raise ValueError("JWT_SECRET is required when JWT_ALGORITHM=HS256.")
+        if JWT_ALGORITHM == "RS256" and (not JWT_PRIVATE_KEY or not JWT_PUBLIC_KEY):
+            raise ValueError(
+                "JWT_PRIVATE_KEY and JWT_PUBLIC_KEY are required when JWT_ALGORITHM=RS256."
+            )
 
     @classmethod
     def _encode_key(cls) -> str:
