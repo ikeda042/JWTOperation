@@ -57,7 +57,7 @@ def _resolve_requested_scopes(
 
 
 @app.exception_handler(AuthorizationException)
-async def authorization_exception_handler(_, exc: AuthorizationException) -> JSONResponse:
+async def authorization_exception_handler(request, exc: AuthorizationException) -> JSONResponse:
     return JSONResponse(status_code=exc.code, content={"detail": exc.message})
 
 
@@ -108,9 +108,10 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str
 
 
 if __name__ == "__main__":
+    reload_env = os.getenv("UVICORN_RELOAD", "").lower()
     uvicorn.run(
         app,
         host=os.getenv("UVICORN_HOST", "127.0.0.1"),
         port=int(os.getenv("UVICORN_PORT", "8000")),
-        reload=os.getenv("UVICORN_RELOAD", "").lower() == "true",
+        reload=reload_env in {"1", "true", "yes", "on"},
     )
