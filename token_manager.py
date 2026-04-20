@@ -11,6 +11,8 @@ from ulid import monotonic as ulid
 from settings import (
     ACCESS_TOKEN_EXP_MINUTES,
     JWT_ALGORITHM,
+    JWT_PRIVATE_KEY,
+    JWT_PUBLIC_KEY,
     JWT_SECRET,
     REFRESH_TOKEN_EXP_MINUTES,
     REFRESH_TOKEN_STORE,
@@ -38,6 +40,29 @@ class RefreshTokenRecord(TypedDict):
 
 class TokenManager:
     _refresh_token_store_lock: asyncio.Lock | None = None
+    _SUPPORTED_ALGORITHMS = {"HS256", "RS256"}
+
+    @classmethod
+    def _validate_algorithm(cls) -> None:
+        if JWT_ALGORITHM not in cls._SUPPORTED_ALGORITHMS:
+            raise ValueError(
+                f"Unsupported JWT_ALGORITHM: {JWT_ALGORITHM}. "
+                f"Supported: {sorted(cls._SUPPORTED_ALGORITHMS)}"
+            )
+
+    @classmethod
+    def _encode_key(cls) -> str:
+        cls._validate_algorithm()
+        if JWT_ALGORITHM == "HS256":
+            return JWT_SECRET
+        return JWT_PRIVATE_KEY
+
+    @classmethod
+    def _decode_key(cls) -> str:
+        cls._validate_algorithm()
+        if JWT_ALGORITHM == "HS256":
+            return JWT_SECRET
+        return JWT_PUBLIC_KEY
 
     @classmethod
     def _get_refresh_token_store_lock(cls) -> asyncio.Lock:
@@ -88,7 +113,7 @@ class TokenManager:
         to_encode.update({"exp": exp, "jti": jti, "type": TokenType.access})
         encoded_jwt: str = jwt.encode(
             to_encode,
-            JWT_SECRET,
+            cls._encode_key(),
             algorithm=JWT_ALGORITHM,
         )
         return encoded_jwt, AccessToken(**to_encode)
@@ -108,7 +133,7 @@ class TokenManager:
         to_encode.update({"exp": exp, "jti": jti, "type": TokenType.refresh})
         encoded_jwt: str = jwt.encode(
             to_encode,
-            JWT_SECRET,
+            cls._encode_key(),
             algorithm=JWT_ALGORITHM,
         )
         return encoded_jwt, RefreshToken(**to_encode)
@@ -170,7 +195,7 @@ class TokenManager:
             return payload_model(
                 **jwt.decode(
                     token,
-                    JWT_SECRET,
+                    cls._decode_key(),
                     algorithms=[JWT_ALGORITHM],
                 )
             )
