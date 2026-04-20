@@ -95,18 +95,21 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> TokenResponse
         if form_data.username is None or form_data.password is None:
             raise InvalidTokenRequest("username/password are required for password grant.")
 
-        account = _authenticate_user(form_data.username, form_data.password)
-        account = Account(
-            id=account.id,
-            scopes=_resolve_requested_scopes(account.scopes, form_data.scopes),
+        authenticated_account = _authenticate_user(form_data.username, form_data.password)
+        authorized_account = Account(
+            id=authenticated_account.id,
+            scopes=_resolve_requested_scopes(
+                authenticated_account.scopes,
+                form_data.scopes,
+            ),
         )
-        refresh_token = await TokenManager.create_refresh_token_from_account(account)
-        access_token = TokenManager.create_access_token_from_account(account)
+        refresh_token = await TokenManager.create_refresh_token_from_account(authorized_account)
+        access_token = TokenManager.create_access_token_from_account(authorized_account)
         return TokenResponse(
             access_token=access_token,
             token_type="bearer",
             expires_in=ACCESS_TOKEN_EXP_MINUTES * 60,
-            scope=_serialize_scopes(account.scopes),
+            scope=_serialize_scopes(authorized_account.scopes),
             refresh_token=refresh_token,
         )
 
