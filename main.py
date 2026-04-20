@@ -7,11 +7,13 @@ from schemas import (
     AuthorizationException,
     InvalidPassword,
     InvalidTokenRequest,
+    NotEnoughPermissions,
     OAuth2GrantType,
     OAuth2RequestForm,
     Scope,
     UserNotFound,
 )
+from settings import ACCESS_TOKEN_EXP_MINUTES
 from token_manager import TokenManager
 
 API_BASE_PATH = "/api/v1"
@@ -35,6 +37,23 @@ def _authenticate_user(username: str, password: str) -> Account:
     return Account(id=DEMO_USERNAME, scopes=DEMO_SCOPES)
 
 
+def _resolve_requested_scopes(
+    available_scopes: set[Scope],
+    requested_scopes: list[str],
+) -> set[Scope]:
+    if not requested_scopes:
+        return available_scopes
+
+    try:
+        parsed_scopes = {Scope(scope) for scope in requested_scopes}
+    except ValueError as exc:
+        raise InvalidTokenRequest("scope includes unknown value.") from exc
+
+    if not parsed_scopes.issubset(available_scopes):
+        raise NotEnoughPermissions("requested scope is not allowed.")
+    return parsed_scopes
+
+
 @app.exception_handler(AuthorizationException)
 async def authorization_exception_handler(_, exc: AuthorizationException) -> JSONResponse:
     return JSONResponse(status_code=exc.code, content={"detail": exc.message})
@@ -52,13 +71,17 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str
             raise InvalidTokenRequest("username/password are required for password grant.")
 
         account = _authenticate_user(form_data.username, form_data.password)
+        account = Account(
+            id=account.id,
+            scopes=_resolve_requested_scopes(account.scopes, form_data.scopes),
+        )
         refresh_token = await TokenManager.create_refresh_token_from_account(account)
         access_token = TokenManager.create_access_token_from_account(account)
-        access_payload = TokenManager.parse_and_validate_access_token(access_token)
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "expires_in": access_payload.exp,
+            "expires_in": ACCESS_TOKEN_EXP_MINUTES * 60,
+            "scope": " ".join(sorted(account.scopes)),
             "refresh_token": refresh_token,
         }
 
@@ -66,13 +89,19 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str
         raise InvalidTokenRequest("refresh_token is required for refresh_token grant.")
 
     refresh_payload = await TokenManager.parse_and_validate_refresh_token(form_data.refresh_token)
-    account = Account(id=refresh_payload.sub, scopes=set(refresh_payload.scopes))
+    account = Account(
+        id=refresh_payload.sub,
+        scopes=_resolve_requested_scopes(
+            set(refresh_payload.scopes),
+            form_data.scopes,
+        ),
+    )
     access_token = TokenManager.create_access_token_from_account(account)
-    access_payload = TokenManager.parse_and_validate_access_token(access_token)
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "expires_in": access_payload.exp,
+        "expires_in": ACCESS_TOKEN_EXP_MINUTES * 60,
+        "scope": " ".join(sorted(account.scopes)),
     }
 
 
