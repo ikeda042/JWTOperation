@@ -8,7 +8,9 @@ from schemas import (
     Account,
     AuthorizationException,
     BaseModelImmutable,
+    InvalidAccessToken,
     InvalidPassword,
+    InvalidRefreshToken,
     InvalidTokenRequest,
     NotEnoughPermissions,
     OAuth2GrantType,
@@ -76,12 +78,28 @@ def _serialize_scopes(scopes: set[Scope]) -> str:
     return " ".join(sorted(scope.value for scope in scopes))
 
 
+def _oauth_error_code(exc: AuthorizationException) -> str:
+    if isinstance(exc, InvalidTokenRequest):
+        return "invalid_request"
+    if isinstance(exc, (InvalidPassword, UserNotFound, InvalidRefreshToken, InvalidAccessToken)):
+        return "invalid_grant"
+    if isinstance(exc, NotEnoughPermissions):
+        return "invalid_scope"
+    return "access_denied"
+
+
 @app.exception_handler(AuthorizationException)
 async def authorization_exception_handler(
     request: Request,
     exc: AuthorizationException,
 ) -> JSONResponse:
-    return JSONResponse(status_code=exc.code, content={"detail": exc.message})
+    return JSONResponse(
+        status_code=exc.code,
+        content={
+            "error": _oauth_error_code(exc),
+            "error_description": exc.message,
+        },
+    )
 
 
 @app.get(f"{API_BASE_PATH}/")
