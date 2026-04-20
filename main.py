@@ -81,7 +81,7 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str
             "access_token": access_token,
             "token_type": "bearer",
             "expires_in": ACCESS_TOKEN_EXP_MINUTES * 60,
-            "scope": " ".join(sorted(account.scopes)),
+            "scope": " ".join(sorted(scope.value for scope in account.scopes)),
             "refresh_token": refresh_token,
         }
 
@@ -101,7 +101,7 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str
         "access_token": access_token,
         "token_type": "bearer",
         "expires_in": ACCESS_TOKEN_EXP_MINUTES * 60,
-        "scope": " ".join(sorted(account.scopes)),
+        "scope": " ".join(sorted(scope.value for scope in account.scopes)),
     }
 
 
