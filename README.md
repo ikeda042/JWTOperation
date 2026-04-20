@@ -147,6 +147,9 @@ python main.py
 - `POST /api/v1/oauth/token`
   - `grant_type=password` + `username` + `password` でログイン
   - `grant_type=refresh_token` + `refresh_token` で access token 再発行
+- `GET /api/v1/oauth/public-key`
+  - `JWT_ALGORITHM=RS256` 時に検証用公開鍵を配布
+  - レスポンス例: `{"alg":"RS256","public_key":"-----BEGIN PUBLIC KEY-----..."}` 
 
 デモ実行（旧 main.py の挙動）:
 

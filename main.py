@@ -13,15 +13,16 @@ from schemas import (
     InvalidRefreshToken,
     InvalidTokenRequest,
     NotEnoughPermissions,
-    OAuth2GrantType,
+    OAuthGrantType,
     OAuth2RequestForm,
     Scope,
     UserNotFound,
 )
-from settings import ACCESS_TOKEN_EXP_MINUTES
+from settings import ACCESS_TOKEN_EXP_MINUTES, JWT_ALGORITHM, JWT_PUBLIC_KEY
 from token_manager import TokenManager
 
 API_BASE_PATH = "/api/v1"
+PUBLIC_KEY_DISTRIBUTION_ALGORITHM = "RS256"
 
 DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo-user-001")
 DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "demo-password")
@@ -40,6 +41,11 @@ class TokenResponse(BaseModelImmutable):
     expires_in: int
     scope: str
     refresh_token: str | None = None
+
+
+class PublicKeyResponse(BaseModelImmutable):
+    alg: str
+    public_key: str
 
 
 def _authenticate_user(username: str, password: str) -> Account:
@@ -109,7 +115,7 @@ async def health_check() -> dict[str, str]:
 
 @app.post(f"{API_BASE_PATH}/oauth/token")
 async def issue_token(form_data: OAuth2RequestForm = Depends()) -> TokenResponse:
-    if form_data.grant_type == OAuth2GrantType.password:
+    if form_data.grant_type == OAuthGrantType.password:
         if form_data.username is None or form_data.password is None:
             raise InvalidTokenRequest("username/password are required for password grant.")
 
@@ -149,6 +155,19 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> TokenResponse
         expires_in=ACCESS_TOKEN_EXP_MINUTES * 60,
         scope=_serialize_scopes(account.scopes),
     )
+
+
+@app.get(f"{API_BASE_PATH}/oauth/public-key")
+async def get_public_key() -> PublicKeyResponse:
+    if JWT_ALGORITHM != PUBLIC_KEY_DISTRIBUTION_ALGORITHM:
+        raise InvalidTokenRequest(
+            "public key distribution is available only when "
+            f"JWT_ALGORITHM={PUBLIC_KEY_DISTRIBUTION_ALGORITHM} (current: {JWT_ALGORITHM})."
+        )
+    sanitized_public_key = JWT_PUBLIC_KEY.strip()
+    if not sanitized_public_key:
+        raise InvalidTokenRequest("JWT_PUBLIC_KEY is empty or not configured.")
+    return PublicKeyResponse(alg=JWT_ALGORITHM, public_key=sanitized_public_key)
 
 
 if __name__ == "__main__":
