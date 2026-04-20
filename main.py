@@ -1,3 +1,5 @@
+import os
+
 from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
 import uvicorn
@@ -18,8 +20,8 @@ from token_manager import TokenManager
 
 API_BASE_PATH = "/api/v1"
 
-DEMO_USERNAME = "demo-user-001"
-DEMO_PASSWORD = "demo-password"
+DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo-user-001")
+DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "demo-password")
 DEMO_SCOPES = {Scope.role1, Scope.admin}
 
 app = FastAPI(
@@ -106,4 +108,9 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        app,
+        host=os.getenv("UVICORN_HOST", "127.0.0.1"),
+        port=int(os.getenv("UVICORN_PORT", "8000")),
+        reload=os.getenv("UVICORN_RELOAD", "").lower() == "true",
+    )
