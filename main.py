@@ -1,42 +1,80 @@
-import asyncio
+from fastapi import Depends, FastAPI
+from fastapi.responses import JSONResponse
+import uvicorn
 
-from settings import REFRESH_TOKEN_STORE
-from schemas import Account, Scope
+from schemas import (
+    Account,
+    AuthorizationException,
+    InvalidPassword,
+    InvalidTokenRequest,
+    OAuth2GrantType,
+    OAuth2RequestForm,
+    Scope,
+    UserNotFound,
+)
 from token_manager import TokenManager
 
+API_BASE_PATH = "/api/v1"
 
-def create_demo_account() -> Account:
-    return Account(id="demo-user-001", scopes={Scope.role1, Scope.admin})
+DEMO_USERNAME = "demo-user-001"
+DEMO_PASSWORD = "demo-password"
+DEMO_SCOPES = {Scope.role1, Scope.admin}
+
+app = FastAPI(
+    title="JWTOperation API",
+    docs_url=f"{API_BASE_PATH}/docs",
+    openapi_url=f"{API_BASE_PATH}/openapi.json",
+)
 
 
-def print_refresh_token_store() -> None:
-    contents = REFRESH_TOKEN_STORE.read_text(encoding="utf-8").strip()
-    print(f"\nrefresh token store: {REFRESH_TOKEN_STORE.name}")
-    print(contents if contents else "(empty)")
+def _authenticate_user(username: str, password: str) -> Account:
+    if username != DEMO_USERNAME:
+        raise UserNotFound()
+    if password != DEMO_PASSWORD:
+        raise InvalidPassword()
+    return Account(id=DEMO_USERNAME, scopes=DEMO_SCOPES)
 
 
-async def run_demo() -> None:
-    await TokenManager.reset_refresh_token_store()
-    print("0. refresh token store")
-    print_refresh_token_store()
+@app.exception_handler(AuthorizationException)
+async def authorization_exception_handler(_, exc: AuthorizationException) -> JSONResponse:
+    return JSONResponse(status_code=exc.code, content={"detail": exc.message})
 
-    account = create_demo_account()
-    print("\n1. account")
-    print(account.model_dump())
 
-    refresh_token = await TokenManager.create_refresh_token_from_account(account)
-    refresh_payload = await TokenManager.parse_and_validate_refresh_token(refresh_token)
-    print("\n2. refresh token")
-    print(refresh_token)
-    print(refresh_payload.model_dump())
-    print_refresh_token_store()
+@app.get(f"{API_BASE_PATH}/")
+async def health_check() -> dict[str, str]:
+    return {"status": "ok"}
 
-    access_token = await TokenManager.create_access_token_from_refresh_token(refresh_token)
+
+@app.post(f"{API_BASE_PATH}/oauth/token")
+async def issue_token(form_data: OAuth2RequestForm = Depends()) -> dict[str, str | int]:
+    if form_data.grant_type == OAuth2GrantType.password:
+        if form_data.username is None or form_data.password is None:
+            raise InvalidTokenRequest("username/password are required for password grant.")
+
+        account = _authenticate_user(form_data.username, form_data.password)
+        refresh_token = await TokenManager.create_refresh_token_from_account(account)
+        access_token = TokenManager.create_access_token_from_account(account)
+        access_payload = TokenManager.parse_and_validate_access_token(access_token)
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": access_payload.exp,
+            "refresh_token": refresh_token,
+        }
+
+    if form_data.refresh_token is None:
+        raise InvalidTokenRequest("refresh_token is required for refresh_token grant.")
+
+    refresh_payload = await TokenManager.parse_and_validate_refresh_token(form_data.refresh_token)
+    account = Account(id=refresh_payload.sub, scopes=set(refresh_payload.scopes))
+    access_token = TokenManager.create_access_token_from_account(account)
     access_payload = TokenManager.parse_and_validate_access_token(access_token)
-    print("\n3. access token from refresh token")
-    print(access_token)
-    print(access_payload.model_dump())
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": access_payload.exp,
+    }
 
 
 if __name__ == "__main__":
-    asyncio.run(run_demo())
+    uvicorn.run(app, host="0.0.0.0", port=8000)

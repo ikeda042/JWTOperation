@@ -57,7 +57,7 @@ Signature は Header と Payload を秘密鍵で署名したもの。
 
 ### 1. アカウントを作成する
 
-`main.py` で `Account` を作成する。  
+`test.py` で `Account` を作成する。  
 ここでは `demo-user-001` に `role1` と `admin` の権限を持たせる。
 
 ### 2. refresh token を発行する
@@ -114,7 +114,9 @@ access token には `type=access` を入れる。
 ## ファイル構成
 
 - `main.py`
-  実行用のエントリポイント。アカウント作成から token 発行までを順に表示する。
+  FastAPI の実行用エントリポイント。`/api/v1/oauth/token` で OAuth2 準拠の token 発行（password / refresh_token grant）を提供する。
+- `test.py`
+  旧 `main.py` のデモ処理。アカウント作成から token 発行までを順に表示する。
 - `schemas.py`
   Pydantic モデル、Enum、例外クラスなどの定義をまとめる。
 - `token_manager.py`
@@ -129,10 +131,26 @@ access token には `type=access` を入れる。
 依存ライブラリが入った環境で次を実行する。
 
 ```bash
-./venv/bin/python -B main.py
+python main.py
 ```
 
-実行すると、次の流れを確認できる。
+起動後、Swagger UI は次で確認できる。
+
+- `http://127.0.0.1:8000/api/v1/docs`
+
+トークン発行エンドポイント:
+
+- `POST /api/v1/oauth/token`
+  - `grant_type=password` + `username` + `password` でログイン
+  - `grant_type=refresh_token` + `refresh_token` で access token 再発行
+
+デモ実行（旧 main.py の挙動）:
+
+```bash
+python test.py
+```
+
+`python test.py` を実行すると、次の流れを確認できる。
 
 - 最初に `refresh_tokens.txt` を空にする
 - アカウント情報を表示する
