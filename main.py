@@ -1,4 +1,5 @@
 import os
+import hmac
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -51,7 +52,7 @@ class PublicKeyResponse(BaseModelImmutable):
 def _authenticate_user(username: str, password: str) -> Account:
     if username != DEMO_USERNAME:
         raise UserNotFound()
-    if password != DEMO_PASSWORD:
+    if not hmac.compare_digest(password, DEMO_PASSWORD):
         raise InvalidPassword()
     return Account(id=DEMO_USERNAME, scopes=DEMO_SCOPES)
 
