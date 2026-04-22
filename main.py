@@ -50,7 +50,7 @@ class PublicKeyResponse(BaseModelImmutable):
 
 
 def _authenticate_user(username: str, password: str) -> Account:
-    if username != DEMO_USERNAME:
+    if not hmac.compare_digest(username, DEMO_USERNAME):
         raise UserNotFound()
     if not hmac.compare_digest(password, DEMO_PASSWORD):
         raise InvalidPassword()
