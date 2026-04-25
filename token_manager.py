@@ -40,7 +40,7 @@ class RefreshTokenRecord(TypedDict):
 
 class TokenManager:
     _refresh_token_store_lock: asyncio.Lock | None = None
-    _SUPPORTED_ALGORITHMS = {"HS256", "RS256"}
+    _SUPPORTED_ALGORITHMS = {"HS256", "RS256", "ES256"}
 
     @classmethod
     def _validate_algorithm(cls) -> None:
@@ -51,9 +51,10 @@ class TokenManager:
             )
         if JWT_ALGORITHM == "HS256" and not JWT_SECRET:
             raise ValueError("JWT_SECRET is required when JWT_ALGORITHM=HS256.")
-        if JWT_ALGORITHM == "RS256" and (not JWT_PRIVATE_KEY or not JWT_PUBLIC_KEY):
+        if JWT_ALGORITHM in {"RS256", "ES256"} and (not JWT_PRIVATE_KEY or not JWT_PUBLIC_KEY):
             raise ValueError(
-                "JWT_PRIVATE_KEY and JWT_PUBLIC_KEY are required when JWT_ALGORITHM=RS256."
+                "JWT_PRIVATE_KEY and JWT_PUBLIC_KEY are required when "
+                "JWT_ALGORITHM is RS256 or ES256."
             )
 
     @classmethod

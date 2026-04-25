@@ -23,7 +23,7 @@ from settings import ACCESS_TOKEN_EXP_MINUTES, JWT_ALGORITHM, JWT_PUBLIC_KEY
 from token_manager import TokenManager
 
 API_BASE_PATH = "/api/v1"
-PUBLIC_KEY_DISTRIBUTION_ALGORITHM = "RS256"
+PUBLIC_KEY_DISTRIBUTION_ALGORITHMS = {"RS256", "ES256"}
 
 DEMO_USERNAME = os.getenv("DEMO_USERNAME", "demo-user-001")
 DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "demo-password")
@@ -160,10 +160,10 @@ async def issue_token(form_data: OAuth2RequestForm = Depends()) -> TokenResponse
 
 @app.get(f"{API_BASE_PATH}/oauth/public-key")
 async def get_public_key() -> PublicKeyResponse:
-    if JWT_ALGORITHM != PUBLIC_KEY_DISTRIBUTION_ALGORITHM:
+    if JWT_ALGORITHM not in PUBLIC_KEY_DISTRIBUTION_ALGORITHMS:
         raise InvalidTokenRequest(
-            "public key distribution is available only when "
-            f"JWT_ALGORITHM={PUBLIC_KEY_DISTRIBUTION_ALGORITHM} (current: {JWT_ALGORITHM})."
+            "public key distribution is available only when JWT_ALGORITHM is one of "
+            f"{sorted(PUBLIC_KEY_DISTRIBUTION_ALGORITHMS)} (current: {JWT_ALGORITHM})."
         )
     sanitized_public_key = JWT_PUBLIC_KEY.strip()
     if not sanitized_public_key:
